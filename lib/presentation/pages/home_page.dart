@@ -38,6 +38,7 @@ class HomePage extends StatelessWidget {
 
 class _SearchView extends StatelessWidget {
   final CityState state;
+
   const _SearchView({super.key, required this.state});
 
   @override
@@ -47,15 +48,16 @@ class _SearchView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 28, 24, 0),
-          child: Text(
-            'Cucine in città',
-            style: Theme.of(context).textTheme.displayLarge,
+        Center(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 28, 24, 0),
+            child: Text(
+              'Cucine in città',
+              style: Theme.of(context).textTheme.displayLarge,
+            ),
           ),
         ),
         const SizedBox(height: 20),
-
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: SearchBarWidget(
@@ -64,7 +66,6 @@ class _SearchView extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-
         Expanded(child: _buildBody(context, state, bloc)),
       ],
     );
@@ -150,6 +151,7 @@ class _SearchView extends StatelessWidget {
 
 class _CuisinesView extends StatelessWidget {
   final CityState state;
+
   const _CuisinesView({super.key, required this.state});
 
   @override
@@ -160,7 +162,6 @@ class _CuisinesView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ── Back button ────────────────────────────────────────
         GestureDetector(
           onTap: () => bloc.add(const BackToSearch()),
           child: const Padding(
@@ -168,21 +169,23 @@ class _CuisinesView extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.arrow_back_rounded, color: AppColors.accent, size: 22),
+                Icon(Icons.arrow_back_rounded,
+                    color: AppColors.accent, size: 22),
               ],
             ),
           ),
         ),
         const SizedBox(height: 12),
-
-        // ── City header ────────────────────────────────────────
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(city.mainText,
-                  style: Theme.of(context).textTheme.displayLarge),
+                  style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                      decoration: TextDecoration.underline,
+                      decorationColor: AppColors.accent,
+                      decorationThickness: 2.0)),
               const SizedBox(height: 2),
               if (city.secondaryText.isNotEmpty)
                 Text(
@@ -196,8 +199,6 @@ class _CuisinesView extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-
-        // ── Cuisine count / body ───────────────────────────────
         Expanded(child: _buildCuisineBody(context, state, bloc)),
       ],
     );
@@ -293,6 +294,7 @@ class _IdleState extends StatelessWidget {
 
 class _NoResults extends StatelessWidget {
   final String term;
+
   const _NoResults({required this.term});
 
   @override

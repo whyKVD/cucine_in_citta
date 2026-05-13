@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../domain/entities/cuisine.dart';
 import '../app_theme.dart';
@@ -23,7 +24,7 @@ class CuisineCard extends StatelessWidget {
             height: 56,
             child: cuisine.imageUrl.isNotEmpty
                 ? CachedNetworkImage(
-                    imageUrl: cuisine.imageUrl,
+                    imageUrl: _resolveUrl(cuisine.imageUrl),
                     fit: BoxFit.contain,
                     placeholder: (_, __) => const _PlaceholderBox(),
                     errorWidget: (_, __, ___) =>
@@ -50,6 +51,14 @@ class CuisineCard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _resolveUrl(String original) {
+    if (original.isEmpty) return '';
+    if (kIsWeb) {
+      return 'https://images.weserv.nl/?url=${Uri.encodeComponent(original)}&w=120';
+    }
+    return original;
   }
 }
 

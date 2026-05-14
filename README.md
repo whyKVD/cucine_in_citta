@@ -1,120 +1,72 @@
 # Cucine in città
 
-Un'app Flutter per esplorare le cucine disponibili in ogni città, usando le API pubbliche di BestieBite.
+Micro-app Flutter per esplorare le cucine disponibili in ogni città, usando le API pubbliche di BestieBite.
 
 ---
 
-## Screenshot dei flussi
+## Come runnarlo
 
-| Idle | Suggerimenti | Cucine |
-|------|-------------|--------|
-| Mappa Italia + search bar | Lista città autocomplete | Griglia 3×N con emoji cucine |
-
----
-
-## Come avviare
-
-### Prerequisiti
-- Flutter SDK ≥ 3.3.0  
-- Dart ≥ 3.3.0  
-- Un device/emulatore iOS, Android, o browser (Web)
-
-### Setup
 ```bash
+# 1. Installa le dipendenze
 flutter pub get
+
+# 2. Avvia (scegli il target)
+flutter run -d chrome          # Web — setup zero, consigliato per provarlo subito
+flutter run -d ios             # iOS Simulator (macOS + Xcode richiesti)
+flutter run -d android         # Android Emulator
 ```
 
-### Run (Web — più veloce per testare)
-```bash
-flutter run -d chrome
-```
+**Requisiti:** Flutter SDK ≥ 3.3.0 · Dart ≥ 3.3.0 · connessione internet (API live)
 
-### Run (iOS Simulator)
-```bash
-open -a Simulator
-flutter run -d ios
-```
-
-### Run (Android Emulator)
-```bash
-flutter run -d android
-```
-
----
-
-## Test unitari
+### Test unitari
 
 ```bash
 flutter test test/city_repository_test.dart
 ```
 
-I test coprono:
-- `CitySuggestionModel.fromJson` — parsing DTO
-- `CuisineModel / CuisinesResponseModel.fromJson` — parsing DTO
-- `BestieBiteRepository.autocomplete` — con mock HTTP (200, 403, term < 2 chars)
-- `BestieBiteRepository.getCuisines` — con mock HTTP (200, 404)
-
 ---
 
 ## Architettura
 
-```
-lib/
-├── data/
-│   ├── models/           ← DTO (JSON → Dart, puri, testabili)
-│   │   ├── city_suggestion_model.dart
-│   │   └── cuisine_model.dart
-│   └── repositories/
-│       └── bestiebite_repository.dart  ← HTTP, mappatura → entity
-├── domain/
-│   ├── entities/         ← Oggetti di dominio (Equatable, no Flutter)
-│   │   ├── city_suggestion.dart
-│   │   └── cuisine.dart
-│   └── repositories/
-│       └── city_repository.dart  ← Interfaccia astratta
-└── presentation/
-    ├── bloc/
-    │   ├── city_bloc.dart   ← Logica + debounce (rxdart)
-    │   ├── city_event.dart
-    │   └── city_state.dart
-    ├── pages/
-    │   └── home_page.dart   ← Una sola pagina, due "viste" animate
-    ├── widgets/             ← Widget atomici riusabili
-    └── app_theme.dart       ← Design tokens centralizzati
-```
+- **Layer separati** — `domain` (entità + interfaccia repository), `data` (DTO + implementazione HTTP), `presentation` (BLoC + UI); le dipendenze puntano sempre verso il basso
+- **BLoC** come state management: eventi espliciti (`SearchTermChanged`, `CitySelected`, `BackToSearch`, `RetryRequested`) mappati su un unico `CityState` immutabile con due sezioni (ricerca / cucine)
+- **Debounce via rxdart** applicato come `transformer` nell'`on<SearchTermChanged>`, con `switchMap` che annulla le chiamate in volo se l'utente continua a digitare
+- **Repository iniettato** — `BestieBiteRepository` accetta un `http.Client` come parametro opzionale, rendendo i test unitari possibili senza infrastruttura aggiuntiva
+- **Un'unica pagina** con `AnimatedSwitcher` tra vista ricerca e vista cucine; nessun `Navigator.push`, zero gestione dello stack
 
 ---
 
-## Scelte tecniche
+## Una cosa di cui sono orgoglioso
 
-### State management: **flutter_bloc**
-- Separazione netta eventi → stati; facile da testare con `bloc_test`
-- `BlocBuilder` minimizza i rebuild (ascolta solo `CityState`)
-- Alternativa valida: Riverpod (più boilerplate ridotto con code-gen, ma più magia implicita)
+Il modo in cui debounce e cancellazione delle chiamate in volo sono gestiti in tre righe dentro il BLoC, senza nessun `Timer` manuale o `StreamController` esplicito:
 
-### Debounce: **rxdart** `debounceTime` via `transformer`
-- Applicato direttamente nell'`on<SearchTermChanged>` senza overhead extra
-- `switchMap` annulla le chiamate precedenti se l'utente digita ancora
+```dart
+on<SearchTermChanged>(
+  _onSearchTermChanged,
+  transformer: (events, mapper) => events
+      .debounceTime(const Duration(milliseconds: 300))
+      .switchMap(mapper),
+);
+```
 
-### HTTP: **http** + **User-Agent custom**
-- Header `BestieBite-Interview/1.0` come da specifica (evita 403 Cloudflare)
-- `BestieBiteRepository` dipende da `http.Client` iniettato → testabile con `mocktail`
-
-### Immagini: **cached_network_image**
-- Cache su disco automatica per le PNG Firebase
-- Placeholder + error fallback già gestiti
+È la soluzione più pulita che conosco per questo problema in Flutter: dichiarativa, testabile, e non lascia nulla in sospeso se il widget viene dismesso.
 
 ---
 
-## Stati UI implementati
+## Una cosa che farei diversamente con più tempo
 
-| Stato | Trigger |
-|-------|---------|
-| **Idle** | Campo vuoto |
-| **Searching** | Spinner circolare durante debounce + fetch |
-| **Suggestions** | Lista città in card arrotondata |
-| **No results** | API ritorna `[]` |
-| **Loading cuisines** | Dopo tap su città, spinner |
-| **Cuisines shown** | Griglia 3 colonne |
-| **Empty cuisines** | `data: []` dalla risposta |
-| **Error** | Qualsiasi eccezione HTTP/network + bottone Riprova |
+Introdurrei **`bloc_test`** per testare il BLoC stesso, non solo il repository. I test attuali verificano il parsing dei DTO e il comportamento HTTP, ma non coprono le transizioni di stato. Con `bloc_test` si scrive in modo molto leggibile:
+
+```dart
+blocTest<CityBloc, CityState>(
+  'emits [searching, suggestions] when term is valid',
+  build: () => CityBloc(mockRepository),
+  act: (bloc) => bloc.add(const SearchTermChanged('mila')),
+  expect: () => [
+    isA<CityState>().having((s) => s.searchPhase, 'phase', SearchPhase.searching),
+    isA<CityState>().having((s) => s.searchPhase, 'phase', SearchPhase.suggestions),
+  ],
+);
+```
+
+Avrebbe reso più sicuro qualsiasi refactor del BLoC nel corso dello sviluppo.
